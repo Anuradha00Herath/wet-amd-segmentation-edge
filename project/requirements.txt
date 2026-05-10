@@ -1,0 +1,45 @@
+# =============================================================
+# OCT wetAMD Segmentation – Research Framework
+# requirements.txt
+# =============================================================
+# Install: pip install -r requirements.txt
+
+# Core deep learning
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Image I/O
+Pillow>=9.0.0
+
+# Scientific computing
+numpy>=1.23.0
+scipy>=1.9.0
+
+# Visualisation
+matplotlib>=3.6.0
+
+# Experiment tracking & utilities
+tqdm>=4.64.0
+
+# FLOPs estimation (optional but recommended)
+thop>=0.1.1
+
+# Memory profiling (optional)
+psutil>=5.9.0
+
+# Augmentation backend (optional – install if using AlbumentationsWrapper)
+# albumentations>=1.3.0
+
+# Power / energy profiling (optional, GPU only)
+# pynvml>=11.0.0
+
+# Intel RAPL energy (Linux CPU profiling, optional)
+# pyrapl>=0.2.3
+
+# ONNX export (Phase 2)
+# onnx>=1.14.0
+# onnxruntime>=1.15.0
+
+# Notebook support (pre-installed in Colab)
+# ipywidgets
+# jupyter
