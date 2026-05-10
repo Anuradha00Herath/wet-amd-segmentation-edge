@@ -32,7 +32,7 @@ class Config:
 
     @property
     def masks_dir(self) -> str:
-        return os.path.join(self.data_dir, "mask")
+        return os.path.join(self.data_dir, "masks")
 
     @property
     def checkpoints_dir(self) -> str:
