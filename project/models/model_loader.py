@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 
-from models.baseline_model import BaselineModel, build_baseline, NUM_CLASSES
+from models.baseline_model import build_baseline, NUM_CLASSES
 from utils.config import Config
 from utils.logger import get_logger, load_checkpoint
 
