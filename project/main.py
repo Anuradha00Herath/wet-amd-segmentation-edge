@@ -127,12 +127,12 @@ class CombinedLoss(nn.Module):
 # --------------------------------------------------------------------------- #
 
 def freeze_encoder(model: nn.Module) -> None:
-    for p in model.model.encoder.parameters():
+    for p in model.encoder.parameters():
         p.requires_grad = False
 
 
 def unfreeze_encoder(model: nn.Module) -> None:
-    for p in model.model.encoder.parameters():
+    for p in model.encoder.parameters():
         p.requires_grad = True
 
 
@@ -143,9 +143,9 @@ def make_optimizer(model: nn.Module, cfg: Config, frozen: bool) -> AdamW:
             lr=cfg.learning_rate, weight_decay=cfg.weight_decay,
         )
     return AdamW([
-        {"params": model.model.encoder.parameters(),          "lr": cfg.encoder_lr},
-        {"params": model.model.decoder.parameters(),          "lr": cfg.learning_rate},
-        {"params": model.model.segmentation_head.parameters(),"lr": cfg.learning_rate},
+        {"params": model.encoder.parameters(),          "lr": cfg.encoder_lr},
+        {"params": model.decoder.parameters(),          "lr": cfg.learning_rate},
+        {"params": model.segmentation_head.parameters(),"lr": cfg.learning_rate},
     ], weight_decay=cfg.weight_decay)
 
 
