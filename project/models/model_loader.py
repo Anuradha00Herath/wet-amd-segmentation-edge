@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 
-from models.baseline_model import BaselineUNet, build_baseline
+from models.baseline_model import BaselineModel, build_baseline, NUM_CLASSES
 from utils.config import Config
 from utils.logger import get_logger, load_checkpoint
 
@@ -23,26 +23,24 @@ _log = get_logger(__name__)
 # --------------------------------------------------------------------------- #
 #  Model registry                                                               #
 # --------------------------------------------------------------------------- #
-# Register new model variants here.  Each entry maps a string key to a
-# callable that accepts (in_channels, out_channels) and returns an nn.Module.
 
 _MODEL_REGISTRY: Dict[str, Any] = {
     "baseline": build_baseline,
-    # "mobile_unet": build_mobile_unet,  # add future variants here
+    # "lightweight_unet": build_lightweight_unet,  # add future variants here
 }
 
 
-def get_model(model_name: str, in_channels: int = 1, out_channels: int = 1) -> nn.Module:
+def get_model(model_name: str, in_channels: int = 1, out_channels: int = NUM_CLASSES) -> nn.Module:
     """
-    Instantiate a model by name.
+    Instantiate a model by name from the registry.
 
     Args:
         model_name:   Key in the model registry (e.g. 'baseline').
-        in_channels:  Input channels.
-        out_channels: Output channels.
+        in_channels:  Input channels (1 for grayscale OCT).
+        out_channels: Output classes (6 for wetAMD segmentation).
 
     Returns:
-        Uninitialised (random weights) nn.Module.
+        nn.Module with random weights.
 
     Raises:
         KeyError: If model_name is not found in registry.
@@ -91,13 +89,13 @@ def load_model(
 
     if os.path.isfile(ckpt_path):
         state = load_checkpoint(ckpt_path, map_location=device)
-        # Support both raw state_dict and wrapped checkpoints
-        if "model_state_dict" in state:
+        # Support both checkpoint formats
+        if "model_state" in state:
+            model.load_state_dict(state["model_state"], strict=strict)
+            _log.info(f"Loaded '{name}' from {ckpt_path} (epoch {state.get('epoch', '?')}, dice {state.get('dice', '?')})")
+        elif "model_state_dict" in state:
             model.load_state_dict(state["model_state_dict"], strict=strict)
-            _log.info(
-                f"Loaded '{name}' weights from {ckpt_path} "
-                f"(epoch {state.get('epoch', '?')})"
-            )
+            _log.info(f"Loaded '{name}' from {ckpt_path} (epoch {state.get('epoch', '?')})")
         else:
             model.load_state_dict(state, strict=strict)
             _log.info(f"Loaded '{name}' state dict from {ckpt_path}")
@@ -118,23 +116,16 @@ def load_model(
 
 class SegmentationInference:
     """
-    High-level inference wrapper with pre/post-processing.
+    High-level inference wrapper for 6-class OCT segmentation.
 
     Args:
-        model:     Loaded nn.Module in eval mode.
-        device:    Target device.
-        threshold: Sigmoid threshold for binary mask (default 0.5).
+        model:  Loaded nn.Module in eval mode.
+        device: Target device.
     """
 
-    def __init__(
-        self,
-        model: nn.Module,
-        device: torch.device,
-        threshold: float = 0.5,
-    ) -> None:
-        self.model = model
+    def __init__(self, model: nn.Module, device: torch.device) -> None:
+        self.model  = model
         self.device = device
-        self.threshold = threshold
 
     @torch.no_grad()
     def predict(self, image: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -142,31 +133,30 @@ class SegmentationInference:
         Run inference on a (possibly batched) image tensor.
 
         Args:
-            image: Float tensor (B, C, H, W) or (C, H, W).
+            image: Float tensor (B, 1, H, W) or (1, H, W).
 
         Returns:
-            (probability_map, binary_mask) both as CPU tensors.
+            probs:      Softmax probabilities  (B, 6, H, W)  – CPU tensor.
+            pred_mask:  Predicted class index  (B, H, W)     – CPU tensor (int64).
         """
         if image.dim() == 3:
             image = image.unsqueeze(0)
 
-        image = image.to(self.device)
-        logits = self.model(image)              # (B, 1, H, W)
-        probs = torch.sigmoid(logits)           # (B, 1, H, W)
-        binary = (probs >= self.threshold).float()
+        image  = image.to(self.device)
+        logits = self.model(image)                      # (B, 6, H, W)
+        probs  = torch.softmax(logits, dim=1)           # (B, 6, H, W)
+        pred_mask = torch.argmax(probs, dim=1)          # (B, H, W)
 
-        return probs.cpu(), binary.cpu()
+        return probs.cpu(), pred_mask.cpu()
 
-    def predict_single(
-        self, image: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Convenience method for single image (C, H, W) → (1, H, W) outputs."""
-        probs, binary = self.predict(image.unsqueeze(0))
-        return probs.squeeze(0), binary.squeeze(0)
+    def predict_single(self, image: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Single image (1, H, W) → probs (6, H, W), pred_mask (H, W)."""
+        probs, pred_mask = self.predict(image.unsqueeze(0))
+        return probs.squeeze(0), pred_mask.squeeze(0)
 
 
 # --------------------------------------------------------------------------- #
-#  Placeholder: quantized model loader (Phase 2+)                             #
+#  Placeholder: quantized model loader (Phase 2+)                              #
 # --------------------------------------------------------------------------- #
 
 def load_quantized_model(
@@ -177,18 +167,7 @@ def load_quantized_model(
 ) -> nn.Module:
     """
     Placeholder for loading quantized (PTQ / QAT) model checkpoints.
-
-    Args:
-        cfg:               Project Config.
-        checkpoint_path:   Path to quantized model checkpoint.
-        quantization_type: One of 'ptq', 'qat', 'mixed'.
-        device:            Target device.
-
-    Returns:
-        Quantized model in eval mode.
-
-    Note:
-        Full implementation added in Phase 2 (quantization/).
+    Full implementation in Phase 2.
     """
     raise NotImplementedError(
         "load_quantized_model is a Phase 2 feature. "

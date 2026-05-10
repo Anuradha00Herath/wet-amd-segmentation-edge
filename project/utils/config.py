@@ -22,7 +22,6 @@ class Config:
     # ------------------------------------------------------------------ #
     project_root: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-    # Resolved lazily so the dataclass stays portable across machines
     @property
     def data_dir(self) -> str:
         return os.path.join(self.project_root, "data")
@@ -61,50 +60,52 @@ class Config:
     #  Dataset                                                             #
     # ------------------------------------------------------------------ #
     image_size: Tuple[int, int] = (256, 256)   # (H, W)
-    val_split: float = 0.2                     # fraction used for validation
-    num_workers: int = 2                       # DataLoader workers (set 0 on Colab if issues arise)
+    train_split: float = 0.70                  # 70% training
+    val_split:   float = 0.15                  # 15% validation
+    test_split:  float = 0.15                  # 15% test
+    num_workers: int = 2                       # set 0 on Colab if issues arise
     pin_memory: bool = True
 
-    # Normalisation statistics – placeholder values; update after computing
-    # actual dataset mean/std with utils/helpers.py::compute_dataset_stats()
+    # Normalisation statistics (grayscale OCT)
     norm_mean: Tuple[float, ...] = (0.5,)
-    norm_std: Tuple[float, ...] = (0.5,)
+    norm_std:  Tuple[float, ...] = (0.5,)
 
     # ------------------------------------------------------------------ #
     #  Training                                                            #
     # ------------------------------------------------------------------ #
     seed: int = 42
     batch_size: int = 8
-    num_epochs: int = 50
-    learning_rate: float = 1e-3
+    num_epochs: int = 60
+    learning_rate: float = 3e-4
+    encoder_lr: float = 3e-5          # lower LR for pretrained encoder
+    freeze_epochs: int = 10           # epochs to train decoder only before unfreezing encoder
     weight_decay: float = 1e-4
     early_stopping_patience: int = 10
 
     # ------------------------------------------------------------------ #
     #  Model                                                               #
     # ------------------------------------------------------------------ #
-    model_name: str = "baseline"       # used for naming saved artefacts
-    in_channels: int = 1              # greyscale OCT
-    out_channels: int = 1             # binary mask
-    # Extend with additional architecture hyper-params as needed
+    model_name: str = "baseline"
+    in_channels: int = 1              # grayscale OCT
+    out_channels: int = 6             # 6 classes: Background, Retinal Layer, PED, SRF, IRF, RPE
 
     # ------------------------------------------------------------------ #
     #  Quantization (populated in later phases)                            #
     # ------------------------------------------------------------------ #
-    ptq_calib_batches: int = 10       # number of batches for PTQ calibration
+    ptq_calib_batches: int = 10
     qat_epochs: int = 5
     mixed_precision_bits: List[int] = field(default_factory=lambda: [8, 4])
 
     # ------------------------------------------------------------------ #
     #  Benchmarking                                                        #
     # ------------------------------------------------------------------ #
-    benchmark_runs: int = 100         # warm-up + timed runs
+    benchmark_runs: int = 100
     benchmark_warmup: int = 10
 
     # ------------------------------------------------------------------ #
     #  Logging                                                             #
     # ------------------------------------------------------------------ #
-    log_interval: int = 10            # log every N batches
+    log_interval: int = 10
     save_best_only: bool = True
 
     def ensure_dirs(self) -> None:
@@ -121,7 +122,6 @@ class Config:
         lines = ["Config("]
         for k, v in self.__dict__.items():
             lines.append(f"  {k}={v!r},")
-        # Also include properties
         for prop in ["data_dir", "images_dir", "masks_dir", "checkpoints_dir",
                      "results_dir", "logs_dir", "plots_dir", "csv_dir"]:
             lines.append(f"  {prop}={getattr(self, prop)!r},")

@@ -1,192 +1,176 @@
 """
 metrics.py
 ----------
-Segmentation metrics for binary OCT wetAMD masks.
+Segmentation metrics for 6-class OCT wetAMD segmentation.
 
-All functions operate on batched float32 tensors in {0, 1} (after
-thresholding). They are numerically stable, handle the all-zero edge
-case, and return scalar tensors unless noted otherwise.
+Inputs expected:
+    pred_mask : (B, H, W) int64  – predicted class indices (from argmax)
+    target    : (B, H, W) int64  – ground-truth class indices
 
 Metrics implemented
 -------------------
-  - Dice coefficient (F1)
-  - Intersection over Union (IoU / Jaccard)
+  - Mean Dice coefficient (macro-averaged across 6 classes)
+  - Per-class Dice
+  - Mean IoU (macro-averaged)
+  - Per-class IoU
   - Pixel accuracy
-  - Sensitivity (Recall / True Positive Rate)
-  - Specificity (True Negative Rate)
-  - Precision
 
 Usage:
     from evaluation.metrics import compute_all_metrics
-    scores = compute_all_metrics(pred_mask, gt_mask)
+    scores = compute_all_metrics(pred_mask, target)
 """
 
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import torch
+import torch.nn.functional as F
+
+from models.baseline_model import NUM_CLASSES, CLASS_NAMES
 
 
 # --------------------------------------------------------------------------- #
-#  Primitive metrics                                                            #
+#  Per-class Dice and IoU                                                      #
 # --------------------------------------------------------------------------- #
 
-def _confusion_components(
-    pred: torch.Tensor,
+def per_class_dice(
+    pred_mask: torch.Tensor,
     target: torch.Tensor,
+    num_classes: int = NUM_CLASSES,
     eps: float = 1e-6,
-) -> Dict[str, torch.Tensor]:
+) -> List[float]:
     """
-    Compute TP, FP, FN, TN summed across the batch.
+    Compute Dice coefficient for each class separately.
 
     Args:
-        pred:   Binary prediction tensor (B, 1, H, W) – values in {0, 1}.
-        target: Binary ground-truth tensor (B, 1, H, W) – values in {0, 1}.
-        eps:    Small value for numerical stability.
+        pred_mask:   Predicted class indices (B, H, W) int64.
+        target:      Ground-truth class indices (B, H, W) int64.
+        num_classes: Number of classes.
+        eps:         Smoothing term.
 
     Returns:
-        Dict with keys: tp, fp, fn, tn (all scalar float tensors).
+        List of Dice scores, one per class.
     """
-    pred = pred.float().view(-1)
-    target = target.float().view(-1)
+    scores = []
+    for c in range(num_classes):
+        p     = (pred_mask == c).float()
+        t     = (target    == c).float()
+        inter = (p * t).sum()
+        denom = p.sum() + t.sum()
+        scores.append(((2 * inter + eps) / (denom + eps)).item())
+    return scores
 
-    tp = (pred * target).sum()
-    fp = (pred * (1 - target)).sum()
-    fn = ((1 - pred) * target).sum()
-    tn = ((1 - pred) * (1 - target)).sum()
 
-    return {"tp": tp, "fp": fp, "fn": fn, "tn": tn}
-
-
-def dice_coefficient(
-    pred: torch.Tensor,
+def per_class_iou(
+    pred_mask: torch.Tensor,
     target: torch.Tensor,
+    num_classes: int = NUM_CLASSES,
     eps: float = 1e-6,
-) -> torch.Tensor:
+) -> List[float]:
     """
-    Sørensen–Dice coefficient.
+    Compute IoU (Jaccard) for each class separately.
 
     Args:
-        pred:   Binary prediction (B, 1, H, W).
-        target: Binary ground truth (B, 1, H, W).
-        eps:    Smoothing term.
+        pred_mask:   Predicted class indices (B, H, W) int64.
+        target:      Ground-truth class indices (B, H, W) int64.
+        num_classes: Number of classes.
+        eps:         Smoothing term.
 
     Returns:
-        Scalar tensor in [0, 1].
+        List of IoU scores, one per class.
     """
-    c = _confusion_components(pred, target)
-    return (2 * c["tp"] + eps) / (2 * c["tp"] + c["fp"] + c["fn"] + eps)
+    scores = []
+    for c in range(num_classes):
+        p     = (pred_mask == c).float()
+        t     = (target    == c).float()
+        inter = (p * t).sum()
+        union = p.sum() + t.sum() - inter
+        scores.append(((inter + eps) / (union + eps)).item())
+    return scores
 
 
-def iou_score(
-    pred: torch.Tensor,
+# --------------------------------------------------------------------------- #
+#  Scalar summary metrics                                                      #
+# --------------------------------------------------------------------------- #
+
+def mean_dice(
+    pred_mask: torch.Tensor,
     target: torch.Tensor,
+    num_classes: int = NUM_CLASSES,
     eps: float = 1e-6,
-) -> torch.Tensor:
-    """
-    Intersection over Union (Jaccard index).
+) -> float:
+    """Macro-averaged Dice across all classes."""
+    return sum(per_class_dice(pred_mask, target, num_classes, eps)) / num_classes
 
-    Args:
-        pred:   Binary prediction (B, 1, H, W).
-        target: Binary ground truth (B, 1, H, W).
-        eps:    Smoothing term.
 
-    Returns:
-        Scalar tensor in [0, 1].
-    """
-    c = _confusion_components(pred, target)
-    return (c["tp"] + eps) / (c["tp"] + c["fp"] + c["fn"] + eps)
+def mean_iou(
+    pred_mask: torch.Tensor,
+    target: torch.Tensor,
+    num_classes: int = NUM_CLASSES,
+    eps: float = 1e-6,
+) -> float:
+    """Macro-averaged IoU across all classes."""
+    return sum(per_class_iou(pred_mask, target, num_classes, eps)) / num_classes
 
 
 def pixel_accuracy(
-    pred: torch.Tensor,
+    pred_mask: torch.Tensor,
     target: torch.Tensor,
-) -> torch.Tensor:
-    """
-    Overall pixel-level accuracy.
-
-    Returns:
-        Scalar tensor in [0, 1].
-    """
-    correct = (pred == target).float().sum()
-    total = torch.tensor(target.numel(), dtype=torch.float32)
-    return correct / total
-
-
-def sensitivity(
-    pred: torch.Tensor,
-    target: torch.Tensor,
-    eps: float = 1e-6,
-) -> torch.Tensor:
-    """Recall / True Positive Rate."""
-    c = _confusion_components(pred, target)
-    return (c["tp"] + eps) / (c["tp"] + c["fn"] + eps)
-
-
-def specificity(
-    pred: torch.Tensor,
-    target: torch.Tensor,
-    eps: float = 1e-6,
-) -> torch.Tensor:
-    """True Negative Rate."""
-    c = _confusion_components(pred, target)
-    return (c["tn"] + eps) / (c["tn"] + c["fp"] + eps)
-
-
-def precision(
-    pred: torch.Tensor,
-    target: torch.Tensor,
-    eps: float = 1e-6,
-) -> torch.Tensor:
-    """Positive Predictive Value."""
-    c = _confusion_components(pred, target)
-    return (c["tp"] + eps) / (c["tp"] + c["fp"] + eps)
+) -> float:
+    """Overall pixel-level accuracy."""
+    correct = (pred_mask == target).float().sum()
+    total   = target.numel()
+    return (correct / total).item()
 
 
 # --------------------------------------------------------------------------- #
-#  Aggregate                                                                    #
+#  Aggregate                                                                   #
 # --------------------------------------------------------------------------- #
 
 def compute_all_metrics(
-    pred: torch.Tensor,
+    pred_mask: torch.Tensor,
     target: torch.Tensor,
-    threshold: float = 0.5,
     from_logits: bool = False,
+    num_classes: int = NUM_CLASSES,
 ) -> Dict[str, float]:
     """
     Compute all segmentation metrics and return as a plain Python dict.
 
     Args:
-        pred:        Prediction tensor (B, 1, H, W).
-                     If from_logits=True, raw logits are expected.
-                     Otherwise binary {0, 1} or probability [0, 1] values.
-        target:      Binary ground-truth (B, 1, H, W).
-        threshold:   Binarisation threshold when pred contains probabilities.
-        from_logits: Apply sigmoid to pred before thresholding.
+        pred_mask:   Predicted class indices (B, H, W) int64.
+                     If from_logits=True, pass raw logits (B, 6, H, W) instead.
+        target:      Ground-truth class indices (B, H, W) int64.
+        from_logits: If True, apply argmax to pred_mask first.
+        num_classes: Number of classes.
 
     Returns:
         Dict mapping metric name → float value.
     """
     if from_logits:
-        pred = torch.sigmoid(pred)
+        pred_mask = torch.argmax(pred_mask, dim=1)   # (B, 6, H, W) → (B, H, W)
 
-    # Binarise if not already binary
-    if pred.is_floating_point():
-        pred = (pred >= threshold).float()
+    pred_mask = pred_mask.long()
+    target    = target.long()
 
-    target = target.float()
+    class_dice = per_class_dice(pred_mask, target, num_classes)
+    class_iou  = per_class_iou(pred_mask, target, num_classes)
 
-    return {
-        "dice":      dice_coefficient(pred, target).item(),
-        "iou":       iou_score(pred, target).item(),
-        "pixel_acc": pixel_accuracy(pred, target).item(),
-        "sensitivity": sensitivity(pred, target).item(),
-        "specificity": specificity(pred, target).item(),
-        "precision": precision(pred, target).item(),
+    metrics: Dict[str, float] = {
+        "mean_dice":  sum(class_dice) / num_classes,
+        "mean_iou":   sum(class_iou)  / num_classes,
+        "pixel_acc":  pixel_accuracy(pred_mask, target),
     }
+
+    # Per-class Dice and IoU
+    for i, name in enumerate(CLASS_NAMES):
+        key = name.lower().replace(" ", "_")
+        metrics[f"dice_{key}"] = class_dice[i]
+        metrics[f"iou_{key}"]  = class_iou[i]
+
+    return metrics
 
 
 # --------------------------------------------------------------------------- #
-#  Running averages                                                             #
+#  Running averages                                                            #
 # --------------------------------------------------------------------------- #
 
 class MetricAccumulator:
@@ -196,27 +180,25 @@ class MetricAccumulator:
     Usage:
         acc = MetricAccumulator()
         for images, masks in loader:
-            metrics = compute_all_metrics(pred, masks)
+            pred_mask = model(images).argmax(dim=1)
+            metrics   = compute_all_metrics(pred_mask, masks)
             acc.update(metrics)
         epoch_metrics = acc.mean()
         acc.reset()
     """
 
     def __init__(self) -> None:
-        self._sums: Dict[str, float] = {}
-        self._counts: Dict[str, int] = {}
+        self._sums:   Dict[str, float] = {}
+        self._counts: Dict[str, int]   = {}
 
     def update(self, metrics: Dict[str, float]) -> None:
         for k, v in metrics.items():
-            self._sums[k] = self._sums.get(k, 0.0) + v
-            self._counts[k] = self._counts.get(k, 0) + 1
+            self._sums[k]   = self._sums.get(k, 0.0) + v
+            self._counts[k] = self._counts.get(k, 0)  + 1
 
     def mean(self) -> Dict[str, float]:
-        return {
-            k: self._sums[k] / self._counts[k]
-            for k in self._sums
-        }
+        return {k: self._sums[k] / self._counts[k] for k in self._sums}
 
     def reset(self) -> None:
-        self._sums = {}
+        self._sums   = {}
         self._counts = {}
