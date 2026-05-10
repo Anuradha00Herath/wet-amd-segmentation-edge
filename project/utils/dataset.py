@@ -5,7 +5,7 @@ Custom PyTorch Dataset for the OCT wetAMD 6-class segmentation task.
 
 Layout expected on disk:
     data/images/  – OCT grayscale image files (PNG / JPG / TIF)
-    data/mask/    – Corresponding RGB colour-coded mask files (same filenames)
+    data/masks/    – Corresponding RGB colour-coded mask files (same filenames)
 
 Mask class mapping (RGB → class index):
     [0,   0,   0  ] → 0  Background
