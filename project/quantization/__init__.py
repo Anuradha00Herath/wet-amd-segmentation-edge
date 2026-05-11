@@ -1,13 +1,30 @@
 # quantization/__init__.py
-# Phase 1: only calibration utilities are active.
-# PTQ, QAT, mixed-precision, and sensitivity modules are scaffolded
-# for Phase 2 and Phase 3.
 
-from quantization.calibration import run_calibration, get_calibration_loader
-from quantization.sensitivity_analysis import get_quantizable_layers
+from quantization.quant_config import QuantConfig
+from quantization.calibration import OCTCalibrationReader, get_calibration_loader
+from quantization.quant_utils import (
+    export_to_onnx, create_ort_session,
+    run_ort_inference, onnx_size_mb, compression_ratio,
+)
+from quantization.static_quant import (
+    PTQPipeline,
+    quantize_static_onnx,
+    quantize_dynamic_onnx,
+    benchmark_ort_session,
+    evaluate_ort_model,
+)
+from quantization.model_fusion import (
+    prepare_model_for_export,
+    optimise_onnx_graph,
+    list_onnx_ops,
+)
 
 __all__ = [
-    "run_calibration",
-    "get_calibration_loader",
-    "get_quantizable_layers",
+    "QuantConfig",
+    "OCTCalibrationReader", "get_calibration_loader",
+    "export_to_onnx", "create_ort_session",
+    "run_ort_inference", "onnx_size_mb", "compression_ratio",
+    "PTQPipeline", "quantize_static_onnx", "quantize_dynamic_onnx",
+    "benchmark_ort_session", "evaluate_ort_model",
+    "prepare_model_for_export", "optimise_onnx_graph", "list_onnx_ops",
 ]

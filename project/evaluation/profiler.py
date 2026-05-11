@@ -78,28 +78,48 @@ def profile_ram(
     input_tensor: torch.Tensor,
 ) -> Dict[str, float]:
     """
-    Measure peak RAM increase during a single forward pass using tracemalloc.
+    Measure RAM usage during a forward pass using psutil RSS.
+
+    psutil RSS correctly captures PyTorch C++ allocations that
+    tracemalloc misses, so this never returns 0 on CPU inference.
 
     Args:
         model:        Model in eval mode.
         input_tensor: Example input on CPU.
 
     Returns:
-        Dict with keys: peak_ram_mb, current_ram_mb.
+        Dict with keys: peak_ram_mb (total process RSS after forward),
+                        current_ram_mb (RSS increase due to forward pass).
     """
     model  = model.cpu().eval()
     tensor = input_tensor.cpu()
 
-    tracemalloc.start()
-    with torch.no_grad():
-        _ = model(tensor)
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
+    try:
+        import psutil
+        process    = psutil.Process(os.getpid())
+        rss_before = process.memory_info().rss / 1e6   # MB
 
-    return {
-        "peak_ram_mb":    peak    / 1e6,
-        "current_ram_mb": current / 1e6,
-    }
+        with torch.no_grad():
+            _ = model(tensor)
+
+        rss_after = process.memory_info().rss / 1e6
+        used_mb   = max(0.0, rss_after - rss_before)
+
+        return {
+            "peak_ram_mb":    rss_after,   # total process RAM after forward
+            "current_ram_mb": used_mb,     # RAM increase from forward pass
+        }
+    except ImportError:
+        # Fallback: tracemalloc (less accurate for PyTorch tensors)
+        tracemalloc.start()
+        with torch.no_grad():
+            _ = model(tensor)
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        return {
+            "peak_ram_mb":    peak    / 1e6,
+            "current_ram_mb": current / 1e6,
+        }
 
 
 # --------------------------------------------------------------------------- #

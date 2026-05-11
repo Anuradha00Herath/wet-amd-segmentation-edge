@@ -43,8 +43,8 @@ opencv-python>=4.7.0
 # pyrapl>=0.2.3
 
 # ONNX export (Phase 2)
-# onnx>=1.14.0
-# onnxruntime>=1.15.0
+onnx>=1.14.0
+onnxruntime>=1.15.0
 
 # Notebook support (pre-installed in Colab)
 # ipywidgets
