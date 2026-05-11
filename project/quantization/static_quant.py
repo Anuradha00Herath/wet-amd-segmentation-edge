@@ -86,6 +86,7 @@ def quantize_static_onnx(
         cfg,
         n_batches=qcfg.calib_batches,
         input_name=input_name,
+        batch_size=1,   # must match ONNX fixed batch size
     )
 
     _log.info(f"Running static INT8 quantization → {output_path}")

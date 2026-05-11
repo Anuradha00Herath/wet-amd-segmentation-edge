@@ -40,10 +40,12 @@ class OCTCalibrationReader:
         cfg: Config,
         n_batches: Optional[int] = None,
         input_name: str = "input",
+        batch_size: int = 1,
     ) -> None:
         self.cfg        = cfg
         self.n_batches  = n_batches or cfg.ptq_calib_batches
         self.input_name = input_name
+        self.batch_size = batch_size
         self._data      = self._collect_calibration_data()
         self._index     = 0
 
@@ -54,7 +56,7 @@ class OCTCalibrationReader:
 
     def _collect_calibration_data(self) -> List[np.ndarray]:
         """Load calibration batches from the inference DataLoader."""
-        loader = build_inference_loader(self.cfg, batch_size=self.cfg.batch_size)
+        loader = build_inference_loader(self.cfg, batch_size=self.batch_size)
         data   = []
 
         for i, (images, _) in enumerate(loader):
