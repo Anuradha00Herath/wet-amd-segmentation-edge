@@ -23,7 +23,7 @@ from typing import List, Optional
 @dataclass
 class QuantConfig:
     # ── ONNX export settings ─────────────────────────────────────────────────
-    opset_version: int = 17          # ONNX opset (17 = PyTorch 2.0+ recommended)
+    opset_version: int = 18          # ONNX opset (17 = PyTorch 2.0+ recommended)
     onnx_filename: str = "baseline_fp32.onnx"
     quant_filename: str = "baseline_int8.onnx"
 

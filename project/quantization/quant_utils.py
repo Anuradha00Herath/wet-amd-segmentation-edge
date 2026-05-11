@@ -61,6 +61,9 @@ def export_to_onnx(
     fname = filename or "baseline_fp32.onnx"
     path  = os.path.join(cfg.checkpoints_dir, fname)
 
+    # Use legacy exporter (dynamo=False) to correctly trace
+    # EfficientNet-B4 encoder with all depthwise convolutions.
+    # The new dynamo exporter traces only a simplified graph for smp models.
     torch.onnx.export(
         model,
         dummy_input,
@@ -75,6 +78,7 @@ def export_to_onnx(
             "output": {0: "batch_size"},
         },
         verbose=False,
+        dynamo=False,   # legacy exporter — required for smp/EfficientNet models
     )
 
     size_mb = os.path.getsize(path) / 1e6
