@@ -100,7 +100,6 @@ def quantize_static_onnx(
         activation_type      = QuantType.QUInt8,
         calibrate_method     = CalibrationMethod.MinMax,
         reduce_range         = qcfg.reduce_range,
-        optimize_model       = True,
     )
 
     size_mb = onnx_size_mb(output_path)
