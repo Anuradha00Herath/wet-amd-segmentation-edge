@@ -1,0 +1,2 @@
+checkpoint,device,gflops,total_params_M,memory_mb,mean_ms,std_ms,fps,timestamp
+experiments/detector_runs/yolov8n_oct_roi/weights/best.pt,cuda,4.0854868,3.011043,178.46435546875,7.919829949914856,1.0981902003403188,126.26533728599632,2026-05-12 07:47:22

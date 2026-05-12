@@ -1,4 +1,4 @@
-path: /content/data/roi_dataset
+path: /content/wet-amd-segmentation-edge/data/roi_dataset
 train: images/train
 val: images/val
 test: images/test

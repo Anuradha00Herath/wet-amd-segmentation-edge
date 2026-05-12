@@ -1,0 +1,2 @@
+experiment_name,timestamp,checkpoint,device,num_test_images,mAP50,mAP50_95,precision,recall,f1,fps,mean_ms,std_ms,gflops,params_M,memory_mb,energy_J,power_W,energy_per_frame_J,energy_backend,notes
+yolov8n_baseline,2026-05-12_07-46-41,experiments/detector_runs/yolov8n_oct_roi/weights/best.pt,cuda,0,0.9791544679758759,0.7365960880199653,0.9323515016896894,0.9571050594404615,0.9445656338641053,101.02873193326674,9.898174319960162,2.5079999823280916,4.0854868,3.011043,160.61767578125,667.1736765321006,91.4569482405826,1.5443835104909736,codecarbon,
