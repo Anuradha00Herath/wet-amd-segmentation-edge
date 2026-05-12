@@ -1,0 +1,77 @@
+# =============================================================================
+# OCT Lesion Segmentation — Phase 1 Configuration
+# =============================================================================
+# Baseline benchmarking: full-image inference with UNet++ EfficientNet-B4
+# Later phases will add YOLOv8n ROI detection and quantization.
+# =============================================================================
+
+project:
+  name: "OCT-Lesion-Seg"
+  phase: 1
+  description: "Baseline segmentation benchmarking on full OCT images"
+  seed: 42
+
+# ── Data ──────────────────────────────────────────────────────────────────────
+data:
+  image_dir:   "/content/wet-amd-segmentation-edge/data/images"
+  mask_dir:    "/content/wet-amd-segmentation-edge/data/masks"
+  image_size:  256          # resize target (H = W)
+  in_channels: 1            # greyscale OCT
+  train_split: 0.70
+  val_split:   0.15
+  # test_split is the remainder: 0.15
+
+# ── Classes ────────────────────────────────────────────────────────────────────
+classes:
+  num_classes: 6
+  names:
+    0: "Background"
+    1: "Retinal Layer"
+    2: "PED"
+    3: "SRF"
+    4: "IRF"
+    5: "RPE"
+  # RGB colours used to encode masks on disk
+  colors_rgb:
+    0: [0,   0,   0  ]   # black
+    1: [255, 0,   255]   # magenta
+    2: [255, 255, 0  ]   # yellow
+    3: [255, 0,   0  ]   # red
+    4: [0,   0,   255]   # blue
+    5: [0,   255, 0  ]   # green
+  rgb_tolerance: 40       # max L2 distance when mapping RGB → class id
+
+# ── Model ──────────────────────────────────────────────────────────────────────
+model:
+  architecture:    "UnetPlusPlus"
+  encoder:         "efficientnet-b4"
+  encoder_weights: "imagenet"
+  decoder_channels: [256, 128, 64, 32, 16]
+  activation:      null          # raw logits (softmax applied in loss/metric)
+  checkpoint:      "/content/wet-amd-segmentation-edge/baseline_unetpp.pth"
+
+# ── Inference ──────────────────────────────────────────────────────────────────
+inference:
+  batch_size:     8
+  device:         "auto"          # "auto" | "cpu" | "cuda"
+  save_predictions: true
+  output_dir:     "results/predictions"
+  num_warmup_batches: 3           # discarded before timing begins
+
+# ── Evaluation ─────────────────────────────────────────────────────────────────
+evaluation:
+  metrics_output_csv:   "results/metrics/baseline_metrics.csv"
+  visualizations_dir:   "results/visualizations"
+  profiling_dir:        "results/profiling"
+  num_viz_samples:      8         # qualitative samples to save
+
+# ── Profiling / Benchmarking ───────────────────────────────────────────────────
+profiling:
+  flops_input_shape: [1, 1, 256, 256]   # [B, C, H, W]
+  measure_energy:    true               # requires pyRAPL / codecarbon
+  energy_backend:    "codecarbon"       # "rapl" | "codecarbon" | "auto"
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"
+  log_file: "results/run.log"
