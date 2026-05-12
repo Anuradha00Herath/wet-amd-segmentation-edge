@@ -1,0 +1,103 @@
+# =============================================================================
+# OCT Lesion Segmentation — Phase 3: ROI-Guided Pipeline Configuration
+# =============================================================================
+# Full pipeline: YOLOv8n ROI detection → crop → UNet++ segmentation on ROI
+# Padding is applied at inference time — no retraining needed.
+# =============================================================================
+
+project:
+  name: "OCT-ROI-Pipeline"
+  phase: 3
+  description: "ROI-guided segmentation: detect ROI → crop → segment"
+  seed: 42
+
+# ── Data ──────────────────────────────────────────────────────────────────────
+data:
+  image_dir:   "/content/drive/MyDrive/FYP/data/images"
+  mask_dir:    "/content/drive/MyDrive/FYP/data/masks"
+  image_size:  256          # original OCT image size (used for mapping back)
+  in_channels: 1            # greyscale OCT
+
+# ── Classes (must match Phase 1 config) ───────────────────────────────────────
+classes:
+  num_classes: 6
+  names:
+    0: "Background"
+    1: "Retinal Layer"
+    2: "PED"
+    3: "SRF"
+    4: "IRF"
+    5: "RPE"
+  colors_rgb:
+    0: [0,   0,   0  ]
+    1: [255, 0,   255]
+    2: [255, 255, 0  ]
+    3: [255, 0,   0  ]
+    4: [0,   0,   255]
+    5: [0,   255, 0  ]
+  rgb_tolerance: 40
+
+# ── Detector (Phase 2 YOLOv8n) ────────────────────────────────────────────────
+detector:
+  checkpoint:       "experiments/detector_runs/yolov8n_oct_roi/weights/best.pt"
+  conf_threshold:   0.25
+  iou_threshold:    0.45
+  image_size:       640
+  device:           "auto"
+  max_detections:   10
+
+# ── ROI Padding ───────────────────────────────────────────────────────────────
+# Applied at inference time — no retraining needed.
+# Increase this if the cropped ROI misses lesion boundaries.
+roi:
+  padding_px:           40    # pixels added to each side of detected bbox
+  padding_mode:         "fixed"   # "fixed" | "percent" (percent of bbox size)
+  padding_percent:      0.20      # used if padding_mode = "percent"
+  fallback_to_full:     true      # if no detection → run seg on full image
+  seg_input_size:       256       # resize ROI to this before segmentation
+  keep_aspect_ratio:    true      # pad to square rather than stretch
+
+# ── Segmentation model (Phase 1 UNet++) ───────────────────────────────────────
+segmentation:
+  architecture:     "UnetPlusPlus"
+  encoder:          "efficientnet-b4"
+  encoder_weights:  "imagenet"
+  decoder_channels: [256, 128, 64, 32, 16]
+  activation:       null
+  checkpoint:       "/content/drive/MyDrive/FYP/model1_unetpp_effb4_6class_best.pth"
+  in_channels:      1
+  device:           "auto"
+
+# ── Inference ─────────────────────────────────────────────────────────────────
+inference:
+  batch_size:         8
+  num_warmup_batches: 3
+  save_predictions:   true
+  output_dir:         "results/pipeline/predictions"
+  device:             "auto"
+
+# ── Evaluation ────────────────────────────────────────────────────────────────
+evaluation:
+  metrics_csv:          "results/pipeline/metrics/pipeline_metrics.csv"
+  comparison_csv:       "results/pipeline/metrics/baseline_vs_roi.csv"
+  visualizations_dir:   "results/pipeline/visualizations"
+  failure_cases_dir:    "results/pipeline/failure_cases"
+  num_viz_samples:      8
+
+# ── Padding sweep experiment ───────────────────────────────────────────────────
+padding_sweep:
+  enabled:       true
+  padding_values: [0, 10, 20, 30, 40, 50, 70]   # pixels
+  output_dir:    "experiments/padding_sweep"
+
+# ── Profiling ─────────────────────────────────────────────────────────────────
+profiling:
+  measure_energy:    true
+  energy_backend:    "codecarbon"
+  # FLOPs measured on ROI input size, not full image
+  flops_input_shape: [1, 1, 256, 256]
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"
+  log_file: "results/pipeline/run.log"
