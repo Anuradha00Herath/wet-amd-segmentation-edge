@@ -5,11 +5,11 @@ Core ROI-guided segmentation pipeline (Phase 3).
 
 Full pipeline per image
 -----------------------
-1.  YOLOv8n detects lesion ROI → bounding box.
-2.  Padding applied (fixed px or % of bbox size) — at inference time,
-    no retraining needed.
-3.  Image cropped to padded ROI.
-4.  Crop resized to segmentation model input size (e.g. 256x256).
+1.  YOLOv8n detects lesion ROI -> bounding box.
+2.  Asymmetric padding applied (padding_px horizontal, padding_py vertical)
+    at inference time — no retraining needed.
+3.  Image cropped to padded rectangular ROI.
+4.  Crop resized to segmentation model input size (must be divisible by 32).
 5.  Segmentation model runs on crop only.
 6.  Prediction resized back to original crop pixel dimensions.
 7.  Prediction mapped into full-image canvas via coord_mapper.
@@ -26,16 +26,14 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
-from inference.roi_cropper  import safe_pad_coords, crop_roi
-from pipelines.coord_mapper import (
-    map_roi_pred_to_full, compute_effective_padding,
-)
+from pipelines.coord_mapper import map_roi_pred_to_full, compute_effective_padding
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PipelineResult:
+    """Result of one ROI-guided segmentation inference."""
     full_pred:      np.ndarray
     roi_pred:       Optional[np.ndarray]     = None
     roi_coords:     Optional[Tuple[int,...]] = None
@@ -64,8 +62,11 @@ class ROIPipeline:
         self.num_classes = cfg.classes.num_classes
 
         logger.info(
-            "ROIPipeline ready | padding=%dpx | seg_input=%s | fallback=%s",
-            cfg.roi.padding_px, cfg.roi.seg_input_size, cfg.roi.fallback_to_full,
+            "ROIPipeline ready | pad_x=%dpx pad_y=%dpx | seg_input=%s | fallback=%s",
+            cfg.roi.padding_px,
+            getattr(cfg.roi, 'padding_py', cfg.roi.padding_px),
+            cfg.roi.seg_input_size,
+            cfg.roi.fallback_to_full,
         )
 
     def run(
@@ -73,12 +74,27 @@ class ROIPipeline:
         image: np.ndarray,
         padding_px: Optional[int] = None,
     ) -> PipelineResult:
-        """Run the full ROI-guided pipeline on one greyscale OCT image."""
+        """
+        Run the full ROI-guided pipeline on one greyscale OCT image.
+
+        Parameters
+        ----------
+        image      : H x W uint8 greyscale numpy array.
+        padding_px : horizontal padding override (vertical uses cfg.roi.padding_py).
+                     If None, uses cfg.roi.padding_px.
+
+        Returns
+        -------
+        PipelineResult
+        """
         cfg            = self.cfg
         orig_h, orig_w = image.shape[:2]
-        pad_px         = padding_px if padding_px is not None else cfg.roi.padding_px
 
-        # Stage 1: Detection
+        # Resolve padding — asymmetric: pad_px for left/right, pad_py for top/bottom
+        pad_px = padding_px if padding_px is not None else cfg.roi.padding_px
+        pad_py = getattr(cfg.roi, 'padding_py', pad_px)
+
+        # ── Stage 1: Detection ────────────────────────────────────────────────
         t0         = time.perf_counter()
         detections = self.detector.predict(image, apply_padding=False)
         t_det      = (time.perf_counter() - t0) * 1000.0
@@ -88,42 +104,42 @@ class ROIPipeline:
 
         best = detections[0]
 
-        # Stage 2: Crop
-        t0      = time.perf_counter()
-        eff_pad = compute_effective_padding(
-            best.x1, best.y1, best.x2, best.y2,
-            padding_mode    = cfg.roi.padding_mode,
-            padding_px      = pad_px,
-            padding_percent = cfg.roi.padding_percent,
-            img_w=orig_w, img_h=orig_h,
-        )
-        cx1, cy1, cx2, cy2 = safe_pad_coords(
-            best.x1, best.y1, best.x2, best.y2, eff_pad, orig_w, orig_h
-        )
-        crop, _ = crop_roi(
-            image, cx1, cy1, cx2, cy2,
-            target_size       = cfg.roi.seg_input_size,
-            keep_aspect_ratio = cfg.roi.keep_aspect_ratio,
-            padding_px        = 0,
-        )
-        t_crop = (time.perf_counter() - t0) * 1000.0
+        # ── Stage 2: Asymmetric crop ──────────────────────────────────────────
+        # More horizontal padding to capture wide retinal structures,
+        # less vertical padding to avoid wasted vitreous/choroid area.
+        t0  = time.perf_counter()
+        cx1 = max(0,      best.x1 - pad_px)
+        cy1 = max(0,      best.y1 - pad_py)
+        cx2 = min(orig_w, best.x2 + pad_px)
+        cy2 = min(orig_h, best.y2 + pad_py)
 
-        # Stage 3: Segmentation on resized crop
+        # Crop the rectangular ROI from the input image (not a global variable)
+        raw_crop = image[cy1:cy2, cx1:cx2]
+
+        # Resize to seg model input size (must be divisible by 32)
+        seg_size = cfg.roi.seg_input_size
+        crop     = cv2.resize(raw_crop, (seg_size, seg_size),
+                              interpolation=cv2.INTER_LINEAR)
+        t_crop   = (time.perf_counter() - t0) * 1000.0
+
+        # ── Stage 3: Segmentation on resized crop ─────────────────────────────
         t0       = time.perf_counter()
         roi_pred = self.seg_model.predict(crop, target_size=None)
         t_seg    = (time.perf_counter() - t0) * 1000.0
 
-        # Stage 4: Resize prediction back to original crop dimensions, then map
+        # ── Stage 4: Resize prediction back → map to full image ───────────────
         t0          = time.perf_counter()
         orig_crop_h = cy2 - cy1
         orig_crop_w = cx2 - cx1
 
+        # Resize from seg output size back to original crop pixel dimensions
         roi_pred_resized = cv2.resize(
             roi_pred.astype(np.uint8),
             (orig_crop_w, orig_crop_h),
-            interpolation=cv2.INTER_NEAREST,
+            interpolation=cv2.INTER_NEAREST,   # preserve class ids — no blending
         )
 
+        # Place into full-image canvas
         full_pred = map_roi_pred_to_full(
             roi_pred_resized, cx1, cy1, cx2, cy2, orig_h, orig_w
         )
@@ -156,11 +172,12 @@ class ROIPipeline:
         orig_h: int,
         orig_w: int,
     ) -> PipelineResult:
-        """Handle the no-detection case."""
+        """Handle the no-detection case — fallback or return background mask."""
         if self.cfg.roi.fallback_to_full:
             logger.debug("No detection -> fallback to full-image segmentation.")
             t0    = time.perf_counter()
-            pred  = self.seg_model.predict(image, target_size=self.cfg.roi.seg_input_size)
+            pred  = self.seg_model.predict(image,
+                                           target_size=self.cfg.roi.seg_input_size)
             t_seg = (time.perf_counter() - t0) * 1000.0
             if pred.shape != (orig_h, orig_w):
                 pred = cv2.resize(pred, (orig_w, orig_h),
@@ -188,6 +205,6 @@ def load_detector_from_pipeline_cfg(cfg):
         iou_threshold   = d.iou_threshold,
         image_size      = d.image_size,
         device          = d.device,
-        padding_px      = 0,
+        padding_px      = 0,            # padding applied in pipeline, not here
         max_detections  = d.max_detections,
     )
