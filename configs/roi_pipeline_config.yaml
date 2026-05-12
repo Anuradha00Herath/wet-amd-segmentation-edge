@@ -50,11 +50,11 @@ detector:
 # Applied at inference time — no retraining needed.
 # Increase this if the cropped ROI misses lesion boundaries.
 roi:
-  padding_px:           40    # pixels added to each side of detected bbox
+  padding_px:           80    # pixels added to each side of detected bbox
   padding_mode:         "fixed"   # "fixed" | "percent" (percent of bbox size)
   padding_percent:      0.20      # used if padding_mode = "percent"
   fallback_to_full:     true      # if no detection → run seg on full image
-  seg_input_size:       256       # resize ROI to this before segmentation
+  seg_input_size:       128       # resize ROI to this before segmentation
   keep_aspect_ratio:    false      # pad to square rather than stretch
 
 # ── Segmentation model (Phase 1 UNet++) ───────────────────────────────────────
