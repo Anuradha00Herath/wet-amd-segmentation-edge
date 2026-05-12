@@ -94,7 +94,7 @@ def load_checkpoint(
     if not path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {path}")
 
-    ckpt = torch.load(path, map_location=device)
+    ckpt = torch.load(path, map_location=device, weights_only=False)
 
     # Handle both raw state-dicts and wrapped checkpoint dicts
     if isinstance(ckpt, dict) and "model_state" in ckpt:
