@@ -48,7 +48,7 @@ model:
   encoder_weights: "imagenet"
   decoder_channels: [256, 128, 64, 32, 16]
   activation:      null          # raw logits (softmax applied in loss/metric)
-  checkpoint:      "/content/wet-amd-segmentation-edge/baseline_unetpp.pth"
+  checkpoint:      "/content/wet-amd-segmentation-edge/models/checkpoints/baseline_unetpp.pth"
 
 # ── Inference ──────────────────────────────────────────────────────────────────
 inference:
