@@ -31,7 +31,7 @@ _REQUIRED_KEYS = {"project", "data", "classes", "model", "inference", "evaluatio
 def _dict_to_namespace(d: Any) -> Any:
     """Recursively convert a nested dict to SimpleNamespace for dot-access."""
     if isinstance(d, dict):
-        return SimpleNamespace(**{k: _dict_to_namespace(v) for k, v in d.items()})
+        return SimpleNamespace(**{str(k): _dict_to_namespace(v) for k, v in d.items()})
     if isinstance(d, list):
         return [_dict_to_namespace(i) for i in d]
     return d
