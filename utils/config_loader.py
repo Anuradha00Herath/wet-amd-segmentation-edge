@@ -28,7 +28,8 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _REQUIRED_KEYS_SEG = {"project", "data", "classes", "model", "inference", "evaluation"}
-_REQUIRED_KEYS_DET = {"project", "data", "roi_dataset", "bbox", "training", "detector"}
+_REQUIRED_KEYS_DET  = {"project", "data", "roi_dataset", "bbox", "training", "detector"}
+_REQUIRED_KEYS_PIPE = {"project", "data", "classes", "detector", "segmentation", "roi"}
 
 
 def _dict_to_namespace(d: Any) -> Any:
@@ -55,7 +56,7 @@ def load_config(
     ----------
     config_path : str or Path
         Path to the YAML config file.
-    config_type : "auto" | "segmentation" | "detector"
+    config_type : "auto" | "segmentation" | "detector" | "pipeline"
         Controls which required-key set is validated.
         "auto" infers from filename (contains "detector" → detector config).
 
@@ -77,9 +78,18 @@ def load_config(
         raw: dict = yaml.safe_load(f)
 
     if config_type == "auto":
-        config_type = "detector" if "detector" in config_path.name else "segmentation"
+        if "pipeline" in config_path.name:
+            config_type = "pipeline"
+        elif "detector" in config_path.name:
+            config_type = "detector"
+        else:
+            config_type = "segmentation"
 
-    required = _REQUIRED_KEYS_DET if config_type == "detector" else _REQUIRED_KEYS_SEG
+    required = (
+        _REQUIRED_KEYS_DET  if config_type == "detector"  else
+        _REQUIRED_KEYS_PIPE if config_type == "pipeline"  else
+        _REQUIRED_KEYS_SEG
+    )
     missing  = required - set(raw.keys())
     if missing:
         raise KeyError(f"Config '{config_path.name}' missing required keys: {missing}")

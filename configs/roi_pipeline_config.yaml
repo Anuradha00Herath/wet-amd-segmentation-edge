@@ -13,8 +13,8 @@ project:
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 data:
-  image_dir:   "/content/wet-amd-segmentation-edge/data/images"
-  mask_dir:    "/content/wet-amd-segmentation-edge/data/masks"
+  image_dir:   "/content/drive/MyDrive/FYP/data/images"
+  mask_dir:    "/content/drive/MyDrive/FYP/data/masks"
   image_size:  256          # original OCT image size (used for mapping back)
   in_channels: 1            # greyscale OCT
 
@@ -64,7 +64,7 @@ segmentation:
   encoder_weights:  "imagenet"
   decoder_channels: [256, 128, 64, 32, 16]
   activation:       null
-  checkpoint:       "/content/wet-amd-segmentation-edge/models/checkpoints/baseline_unetpp.pth"
+  checkpoint:       "/content/drive/MyDrive/FYP/model1_unetpp_effb4_6class_best.pth"
   in_channels:      1
   device:           "auto"
 
