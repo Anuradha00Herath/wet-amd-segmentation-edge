@@ -55,7 +55,7 @@ roi:
   padding_percent:      0.20      # used if padding_mode = "percent"
   fallback_to_full:     true      # if no detection → run seg on full image
   seg_input_size:       256       # resize ROI to this before segmentation
-  keep_aspect_ratio:    true      # pad to square rather than stretch
+  keep_aspect_ratio:    false      # pad to square rather than stretch
 
 # ── Segmentation model (Phase 1 UNet++) ───────────────────────────────────────
 segmentation:
