@@ -88,7 +88,7 @@ evaluation:
 # ── Padding sweep experiment ──────────────────────────────────────────────────
 padding_sweep:
   enabled:        true
-  padding_values: [20, 40, 60, 80, 90, 100]
+  padding_values: [60, 100, 120, 140, 160, 180]
   output_dir:     "experiments/padding_sweep"
 
 # ── Profiling ─────────────────────────────────────────────────────────────────
