@@ -50,7 +50,7 @@ detector:
 # Asymmetric padding: more horizontal (wide retinal layer), less vertical.
 # Applied at inference time — no retraining needed.
 roi:
-  padding_px:        90          # horizontal padding (left/right)
+  padding_px:        60          # horizontal padding (left/right)
   padding_py:        40          # vertical padding (top/bottom)
   padding_mode:      "fixed"     # "fixed" | "percent"
   padding_percent:   0.20        # only used if padding_mode = "percent"
