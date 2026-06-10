@@ -1,0 +1,21 @@
+{
+  "config": {
+    "resize_first": true,
+    "target_size": 256,
+    "n_translations": 5,
+    "margin": 20,
+    "max_shift_x": 40,
+    "max_shift_y": 20,
+    "min_lesion_margin": 5,
+    "seed": 42
+  },
+  "stats": {
+    "total_input": 3049,
+    "saved_original": 3049,
+    "saved_translated": 1885,
+    "skipped_empty": 0,
+    "skipped_unreadable": 0,
+    "partial": 2672
+  },
+  "total_saved": 4934
+}
