@@ -1,0 +1,48 @@
+====================================================================
+  STATISTICAL CONCLUSION — YOLOv8n vs YOLOv8s
+  OCT Retinal Layer ROI Detection
+====================================================================
+
+  Metric                       YOLOv8n       YOLOv8s  Better
+--------------------------------------------------------------------
+  Precision                     0.9041        0.9289  YOLOv8s
+  Recall                        0.9278        0.9431  YOLOv8s
+  F1 Score                      0.9158        0.9359  YOLOv8s
+  mAP50                         0.9206        0.9478  YOLOv8s
+  mAP50-95                      0.6609        0.7341  YOLOv8s
+  Mean IoU                      0.8311        0.8813  YOLOv8s
+  Dice                          0.9077        0.9369  YOLOv8s
+  Parameters (M)                  3.01         11.13  YOLOv8n
+  GFLOPs                         4.043         14.22  YOLOv8n
+  Size (MB)                       24.5          22.5  YOLOv8s
+  Latency (ms)                   226.2         660.5  YOLOv8n
+  FPS                              4.4           1.5  YOLOv8n
+
+====================================================================
+  OVERALL VERDICT
+--------------------------------------------------------------------
+  YOLOv8n       : 4/12 metrics preferred
+  YOLOv8s       : 8/12 metrics preferred
+
+  Accuracy  winner: YOLOv8s  (5/5 acc metrics)
+  Efficiency winner: YOLOv8n  (2/3 eff metrics)
+
+--------------------------------------------------------------------
+  RECOMMENDATION FOR OCT EDGE-DEVICE DEPLOYMENT
+--------------------------------------------------------------------
+  YOLOv8s achieves meaningfully higher accuracy (ΔmAP50=0.0272).
+  If 660.5 ms latency is acceptable, use YOLOv8s.
+
+--------------------------------------------------------------------
+  METRIC DEFINITIONS
+--------------------------------------------------------------------
+  Precision  : TP / (TP+FP)  — how many predictions are correct
+  Recall     : TP / (TP+FN)  — how many GT boxes were found
+  F1         : harmonic mean of Precision and Recall
+  mAP50      : mean AP at IoU≥0.50  (primary YOLO metric)
+  mAP50-95   : mean AP averaged over IoU 0.50:0.05:0.95
+  Mean IoU   : average IoU of matched box pairs
+  Dice       : 2·IoU/(1+IoU)  — box-overlap F1 equivalent
+  GFLOPs     : giga floating-point operations per image
+  Latency    : mean over 100 runs, CUDA Events (GPU) or perf_counter (CPU)
+====================================================================
